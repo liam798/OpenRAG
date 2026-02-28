@@ -20,7 +20,17 @@
 
 ## 快速开始
 
-### 环境要求
+### 一键部署
+
+已安装 Docker 与 Docker Compose 时，可执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/liam798/OpenRAG/main/scripts/install.sh | bash
+```
+
+脚本将克隆仓库、启动 PostgreSQL、执行数据库迁移，并提示你在两个终端分别启动后端与前端。完成后访问 http://localhost:3000 使用。
+
+### 环境要求（手动部署）
 
 - Python 3.10+
 - PostgreSQL 14+ (需安装 pgvector 扩展)
