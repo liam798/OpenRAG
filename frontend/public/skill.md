@@ -14,11 +14,13 @@ description: 查询 OpenRAG 知识库进行 RAG 问答。当用户需要从公�
 |------|------|
 | **SKILL.md**（本文件） | 当前站点 `/skill.md`（完整地址即你访问 OpenRAG 前端的域名 + `/skill.md`） |
 
+通过开发服务器或配置了 `VITE_OPENRAG_ORIGIN` 构建时，文中的地址占位符会自动替换为实际 IP/域名。
+
 **本地安装（Agent 请下载到本地使用）：**
 
 ```bash
 # 将 OPENRAG_ORIGIN 替换为实际 OpenRAG 前端地址
-OPENRAG_ORIGIN="https://localhost:3000"
+OPENRAG_ORIGIN="__OPENRAG_ORIGIN__"
 # 将 SKILL_DIR 替换为你当前使用的 Agent 技能目录，例如：
 #   Cursor:     ~/.cursor/skills/openrag
 #   OpenClaw:   ~/.openclaw/skills/openrag
@@ -137,7 +139,7 @@ X-API-Key: <api_key>
 ### curl
 
 ```bash
-OPENRAG_ORIGIN="https://localhost:3000"
+OPENRAG_ORIGIN="__OPENRAG_ORIGIN__"
 API_KEY="用户提供的API_Key"
 curl -s -X POST "$OPENRAG_ORIGIN/api/knowledge-bases/query" \
   -H "X-API-Key: $API_KEY" \
@@ -150,7 +152,7 @@ curl -s -X POST "$OPENRAG_ORIGIN/api/knowledge-bases/query" \
 ```python
 import httpx
 
-API_URL = "https://localhost:3000/api"
+API_URL = "__OPENRAG_ORIGIN__/api"
 API_KEY = "用户提供的API_Key"
 
 def rag_query(question: str, kb_ids: list[int] | None = None):
