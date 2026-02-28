@@ -1,0 +1,48 @@
+# 环境与密钥
+.env
+!.env.example
+
+# 数据与本地覆盖
+data/
+docker-compose.override.yml
+
+# Node / 前端
+node_modules/
+dist/
+frontend/dist/
+*.local
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/*.so
+.Python
+**/.venv/
+**/venv/
+**/env/
+.pytest_cache/
+.coverage
+htmlcov/
+**/*.egg-info/
+**/.eggs/
+*.egg
+.mypy_cache/
+.ruff_cache/
+*.manifest
+*.spec
+build/
+develop-eggs/
+dist/
+*.tar.gz
+
+# IDE / 系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 日志与临时
+*.log
+.cache/

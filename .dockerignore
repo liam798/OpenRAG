@@ -1,0 +1,13 @@
+# 构建时不需要发送到 Docker 守护进程的文件
+# 镜像通过 npm install -g openclaw 安装，不 COPY 本地文件，仅需减小上下文
+
+.git
+.gitignore
+.env
+.env.example
+*.md
+LICENSE
+
+docker-compose.yml
+docker-setup.sh
+
