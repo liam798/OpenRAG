@@ -5,8 +5,6 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
   pull_request_review:
     types: [submitted]
-  check_suite:
-    types: [completed]
 
 permissions:
   contents: write
@@ -21,3 +19,4 @@ jobs:
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
           merge-method: merge
+          pull-request-number: ${{ github.event.pull_request.number }}
