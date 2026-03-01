@@ -73,7 +73,7 @@ curl -s "$OPENRAG_ORIGIN/skill.md" > "$SKILL_DIR/SKILL.md"
 X-API-Key: <用户的API_Key>
 ```
 
-API 根地址为 `OPENRAG_ORIGIN/api`（与前端同源时即当前站点 `/api`）。
+API 根地址（BAE_URL）为 `__OPENRAG_ORIGIN__/api`。
 
 ### 1. 多知识库 RAG 问答
 
@@ -127,9 +127,9 @@ X-API-Key: <api_key>
 ### curl
 
 ```bash
-OPENRAG_ORIGIN="__OPENRAG_ORIGIN__"
+BAE_URL="__OPENRAG_ORIGIN__/api"
 API_KEY="用户提供的API_Key"
-curl -s -X POST "$OPENRAG_ORIGIN/api/knowledge-bases/query" \
+curl -s -X POST "$BAE_URL/knowledge-bases/query" \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"question":"你的问题","top_k":5,"kb_ids":[]}'
@@ -140,7 +140,7 @@ curl -s -X POST "$OPENRAG_ORIGIN/api/knowledge-bases/query" \
 ```python
 import httpx
 
-API_URL = "__OPENRAG_ORIGIN__/api"
+BAE_URL = "__OPENRAG_ORIGIN__/api"
 API_KEY = "用户提供的API_Key"
 
 def rag_query(question: str, kb_ids: list[int] | None = None):
