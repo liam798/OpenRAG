@@ -18,6 +18,9 @@ from langchain_core.documents import Document
 router = APIRouter(tags=["公共记忆"])
 
 
+_RESERVED_META_KEYS = {"knowledge_base_id", "type", "memory_id", "expires_at"}
+
+
 def _get_kb(db: Session, kb_id: int) -> KnowledgeBase | None:
     return db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
 
@@ -29,6 +32,15 @@ def _parse_metadata(raw: str | None) -> dict | None:
         return json.loads(raw)
     except Exception:
         return None
+
+
+def _validate_metadata_keys(meta: dict | None) -> None:
+    if not meta:
+        return
+    reserved = sorted(k for k in meta.keys() if k in _RESERVED_META_KEYS)
+    if reserved:
+        keys = ", ".join(reserved)
+        raise HTTPException(status_code=400, detail=f"metadata 中包含保留字段：{keys}")
 
 
 @router.post("/knowledge-bases/{kb_id}/memory", response_model=MemoryResponse)
@@ -44,6 +56,8 @@ def add_memory(
         raise HTTPException(status_code=404, detail="知识库不存在")
     if not require_kb_write(kb, current_user, db):
         raise HTTPException(status_code=403, detail="无写入权限")
+
+    _validate_metadata_keys(data.metadata)
 
     ttl = data.ttl_seconds
     expires_at = None
@@ -69,6 +83,8 @@ def add_memory(
         "memory_id": item.id,
         "expires_at": expires_at.isoformat() if expires_at else None,
     }
+    if data.metadata:
+        meta.update(data.metadata)
     doc = Document(page_content=item.content, metadata=meta)
     add_documents_to_kb(kb_id, [doc])
 
@@ -98,12 +114,12 @@ def query_memory(
     if not has_kb_access(kb, current_user, db):
         raise HTTPException(status_code=403, detail="无访问权限")
 
-    docs = similarity_search(
-        kb_id,
-        data.query,
-        k=data.top_k,
-        metadata_filter={"type": "memory"},
-    )
+    _validate_metadata_keys(data.metadata_filter)
+    vector_filter = {"type": "memory"}
+    if data.metadata_filter:
+        vector_filter.update(data.metadata_filter)
+
+    docs = similarity_search(kb_id, data.query, k=data.top_k, metadata_filter=vector_filter)
 
     now = datetime.now(timezone.utc)
     results: list[MemoryResponse] = []

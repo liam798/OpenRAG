@@ -12,6 +12,7 @@ class MemoryCreate(BaseModel):
 class MemoryQuery(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
     top_k: int = Field(default=5, ge=1, le=50)
+    metadata_filter: dict[str, Any] | None = None
 
 
 class MemoryResponse(BaseModel):

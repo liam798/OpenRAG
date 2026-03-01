@@ -91,6 +91,11 @@ OpenRAG/
 | POST | /api/knowledge-bases/{id}/memory | 写入公共记忆（需写权限，支持 TTL，-1 永久） |
 | POST | /api/knowledge-bases/{id}/memory/query | 查询公共记忆（需读权限） |
 | GET | /api/knowledge-bases/{id}/members | 成员列表 |
+
+**公共记忆说明**
+- `memory` 支持携带 `metadata`（如 `agent_id`/`thread_id`），并会写入向量元数据。
+- `memory/query` 支持 `metadata_filter` 精确过滤（与 `metadata` 同键名）。
+- `metadata` 不允许使用保留字段：`knowledge_base_id`, `type`, `memory_id`, `expires_at`。
 | POST | /api/knowledge-bases/{id}/members | 添加成员 |
 | GET | /health/live | 存活探针 |
 | GET | /health/ready | 就绪探针（含数据库探活） |
