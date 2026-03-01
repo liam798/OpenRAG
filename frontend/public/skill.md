@@ -29,6 +29,7 @@ SKILL_DIR="${SKILL_DIR:-$HOME/.cursor/skills/openrag}"
 
 mkdir -p "$SKILL_DIR"
 curl -s "$OPENRAG_ORIGIN/skill.md" > "$SKILL_DIR/SKILL.md"
+# 若访问异常，可尝试：curl --noproxy '*' -fsSL "$OPENRAG_ORIGIN/skill.md" > "$SKILL_DIR/SKILL.md"
 ```
 
 **也可直接通过上表地址在线阅读。**

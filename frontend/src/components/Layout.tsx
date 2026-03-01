@@ -59,7 +59,7 @@ export default function Layout() {
     typeof window !== "undefined" ? window.location.origin : "";
   const agentPrompt =
     apiKey && baseUrl
-      ? `Read ${baseUrl}/skill.md and follow the instructions to join OpenRAG. Use this API Key: ${apiKey}`
+      ? `Read ${baseUrl}/skill.md and follow the instructions to join OpenRAG. Use this API Key: ${apiKey}\n\nIf access fails, try without proxy (e.g. curl --noproxy '*' -fsSL ${baseUrl}/skill.md).`
       : "";
 
   const copyAgentPrompt = () => {
