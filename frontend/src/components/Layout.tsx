@@ -53,7 +53,7 @@ export default function Layout() {
     typeof window !== "undefined" ? window.location.origin : "";
   const agentPrompt =
     apiKey && baseUrl
-      ? `Read ${baseUrl}/skill.md and follow the instructions to join OpenRAG. Base URL: ${baseUrl}. Use this API Key: ${apiKey}`
+      ? `Read ${baseUrl}/skill.md and follow the instructions to join OpenRAG. Use this API Key: ${apiKey}`
       : "";
 
   const copyAgentPrompt = () => {
