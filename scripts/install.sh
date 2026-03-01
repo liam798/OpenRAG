@@ -30,9 +30,18 @@ fi
 echo "==> 启动 PostgreSQL (Docker)..."
 docker compose up -d
 
+NEED_ENV_REMIND=false
 if [[ ! -f backend/.env ]]; then
   echo "==> 生成 backend/.env"
   cp backend/.env.example backend/.env
+  NEED_ENV_REMIND=true
+else
+  OPENAI_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env 2>/dev/null | cut -d= -f2- || true)
+  if [[ -z "$OPENAI_KEY" || "$OPENAI_KEY" == "sk-your-openai-api-key" ]]; then
+    NEED_ENV_REMIND=true
+  fi
+fi
+if [[ "$NEED_ENV_REMIND" == "true" ]]; then
   echo "    请编辑 backend/.env 填写 OPENAI_API_KEY 等配置。"
 fi
 
