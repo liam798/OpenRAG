@@ -30,19 +30,20 @@ fi
 echo "==> 启动 PostgreSQL (Docker)..."
 docker compose up -d
 
+echo "==> 检查 backend/.env"
 NEED_ENV_REMIND=false
 if [[ ! -f backend/.env ]]; then
-  echo "==> 生成 backend/.env"
+  echo "    生成 backend/.env"
   cp backend/.env.example backend/.env
   NEED_ENV_REMIND=true
 else
-  OPENAI_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env 2>/dev/null | cut -d= -f2- || true)
-  if [[ -z "$OPENAI_KEY" || "$OPENAI_KEY" == "sk-your-openai-api-key" ]]; then
+  OPENAI_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env 2>/dev/null | sed 's/^OPENAI_API_KEY=//' | tr -d '\r"' | xargs || true)
+  if [[ -z "$OPENAI_KEY" || "$OPENAI_KEY" == *"your-openai-api-key"* || "$OPENAI_KEY" == "sk-your-openai-api-key" ]]; then
     NEED_ENV_REMIND=true
   fi
 fi
 if [[ "$NEED_ENV_REMIND" == "true" ]]; then
-  echo "    请编辑 backend/.env 填写 OPENAI_API_KEY 等配置。"
+  echo "    ⚠ 请编辑 backend/.env 填写 OPENAI_API_KEY 后再使用 RAG 功能。"
 fi
 
 echo "==> 安装后端依赖并执行数据库迁移..."
