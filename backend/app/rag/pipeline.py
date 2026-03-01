@@ -39,6 +39,23 @@ def chunk_and_embed(kb_id: int, content: str, metadata: dict | None = None) -> i
     return len(docs)
 
 
+def _filter_expired_docs(docs: list[Document]) -> list[Document]:
+    """过滤过期的 memory 文档"""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    filtered: list[Document] = []
+    for d in docs:
+        meta = d.metadata or {}
+        if meta.get("type") == "memory" and meta.get("expires_at"):
+            try:
+                if datetime.fromisoformat(meta["expires_at"]) < now:
+                    continue
+            except Exception:
+                pass
+        filtered.append(d)
+    return filtered
+
+
 def format_docs(docs: list[Document]) -> str:
     """将检索到的文档格式化为上下文"""
     return "\n\n---\n\n".join(d.page_content for d in docs)
@@ -119,6 +136,7 @@ def query_kbs(kb_ids: list[int], question: str, top_k: int = 5) -> tuple[str, li
     # 按相似度分数升序排序（距离越小越相似），取前 top_k
     all_scored.sort(key=lambda x: x[1])
     docs = [d for d, _ in all_scored[:top_k]]
+    docs = _filter_expired_docs(docs)
     context = format_docs(docs)
     try:
         answer = _generate_answer(context, question)
@@ -136,6 +154,7 @@ def query_kb(kb_id: int, question: str, top_k: int = 5) -> tuple[str, list[dict]
     """
     top_k = _safe_top_k(top_k)
     docs = similarity_search(kb_id, question, k=top_k)
+    docs = _filter_expired_docs(docs)
     if not docs:
         return "知识库中暂无相关文档，请先上传文档。", []
 
