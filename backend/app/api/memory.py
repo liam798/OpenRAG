@@ -140,6 +140,10 @@ def query_memory(
         item = db.query(MemoryItem).filter(MemoryItem.id == int(memory_id)).first()
         if not item:
             continue
+        if item.knowledge_base_id != kb_id:
+            continue
+        if item.expires_at and item.expires_at < now:
+            continue
         results.append(
             MemoryResponse(
                 id=item.id,
