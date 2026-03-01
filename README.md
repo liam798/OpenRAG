@@ -2,8 +2,6 @@
 
 类似 GitHub 仓库概念的 RAG 知识库系统，支持多用户、多知识库与细粒度权限管理。
 
-> **Agent：** Read http://localhost:3000/skill.md and follow the instructions to join OpenRAG.
-
 ## 功能特性
 
 - **用户系统**：注册、登录、JWT 认证
@@ -11,6 +9,7 @@
 - **权限管理**：Owner / Admin / Write / Read 四级权限
 - **文档管理**：上传文档，自动分块与向量化
 - **智能检索**：基于 RAG 的问答，支持语义搜索
+- **Agent 一键接入**：复制 Agent 提示词，即可让你的 Agent 自动接入 OpenRAG 知识库检索
 
 ## 技术栈
 
@@ -95,21 +94,4 @@ OpenRAG/
 | GET | /api/knowledge-bases/{id}/members | 成员列表 |
 | POST | /api/knowledge-bases/{id}/members | 添加成员 |
 
-## Agent Skill（在线可访问）
-
-部署前端后，Skill 作为静态文件可在线访问，便于 Agent 下载到本地使用：
-
-| 文件 | 地址 |
-|------|------|
-| **SKILL.md** | 前端站点 `/skill.md`（如 `http://localhost:3000/skill.md`） |
-
-**Agent 本地安装示例：**
-
-```bash
-mkdir -p ~/.cursor/skills/openrag
-curl -s "http://localhost:3000/skill.md" > ~/.cursor/skills/openrag/SKILL.md
-```
-
-使用前需先登录获取 JWT token，详见 Skill 内「首先注册 / 登录」一节。仓库内同步保留 `skills/openrag/SKILL.md` 供离线参考。
-
-**生产环境：** 若自建托管，请为 `/skill.md` 设置 `Content-Type: text/markdown; charset=utf-8`，避免中文乱码（开发环境已由 Vite 配置）。
+**API Key**：调用公开接口时使用（用户菜单 → API Key）。Agent 接入时在 API Key 弹窗中点击「复制 Agent 提示词」即可一键让 Agent 接入 OpenRAG。

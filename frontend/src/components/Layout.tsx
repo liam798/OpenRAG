@@ -49,6 +49,17 @@ export default function Layout() {
     if (apiKey) navigator.clipboard.writeText(apiKey);
   };
 
+  const baseUrl =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const agentPrompt =
+    apiKey && baseUrl
+      ? `Read ${baseUrl}/skill.md and follow the instructions to join OpenRAG. Base URL: ${baseUrl}. Use this API Key: ${apiKey}`
+      : "";
+
+  const copyAgentPrompt = () => {
+    if (agentPrompt) navigator.clipboard.writeText(agentPrompt);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {/* 顶部导航栏 */}
@@ -116,10 +127,10 @@ export default function Layout() {
           <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-xl p-6 z-50">
             <h3 className="text-lg font-semibold text-slate-800 mb-2">API Key</h3>
             <p className="text-sm text-slate-600 mb-4">
-              将 API Key 提供给 Agent，Agent 通过请求头 <code className="bg-slate-100 px-1 rounded">X-API-Key</code> 调用 OpenRAG 接口。
+              调用公开接口时在请求头携带 <code className="bg-slate-100 px-1 rounded">X-API-Key</code>。
             </p>
             {loadingApiKey ? (
-              <p className="text-sm text-slate-500">加载中...</p>
+              <p className="text-sm text-slate-500">加载中ƒ...</p>
             ) : apiKey ? (
               <div className="space-y-3">
                 <div className="flex gap-2">
@@ -142,6 +153,21 @@ export default function Layout() {
                 >
                   重新生成（旧 Key 将失效）
                 </button>
+                <div className="pt-3 border-t border-slate-100">
+                  <p className="text-sm text-slate-600 mb-2">Agent 接入：复制下面提示词粘贴给 Agent。</p>
+                  <textarea
+                    readOnly
+                    value={agentPrompt}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono bg-slate-50 resize-none"
+                  />
+                  <button
+                    onClick={copyAgentPrompt}
+                    className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
+                  >
+                    复制 Agent 提示词
+                  </button>
+                </div>
               </div>
             ) : null}
             <div className="mt-4 flex justify-end">
