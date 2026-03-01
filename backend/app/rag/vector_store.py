@@ -73,15 +73,35 @@ def add_documents_to_kb(kb_id: int, documents: list[Document]) -> None:
     store.add_documents(documents)
 
 
-def similarity_search(kb_id: int, query: str, k: int = 5) -> list[Document]:
+def similarity_search(
+    kb_id: int,
+    query: str,
+    k: int = 5,
+    metadata_filter: dict | None = None,
+) -> list[Document]:
     """相似度搜索"""
     store = get_vector_store(kb_id)
+    if metadata_filter:
+        try:
+            return store.similarity_search(query, k=k, filter=metadata_filter)
+        except TypeError:
+            pass
     return store.similarity_search(query, k=k)
 
 
-def similarity_search_with_score(kb_id: int, query: str, k: int = 5) -> list[tuple[Document, float]]:
+def similarity_search_with_score(
+    kb_id: int,
+    query: str,
+    k: int = 5,
+    metadata_filter: dict | None = None,
+) -> list[tuple[Document, float]]:
     """相似度搜索（带分数，用于跨知识库合并排序）"""
     store = get_vector_store(kb_id)
+    if metadata_filter:
+        try:
+            return store.similarity_search_with_score(query, k=k, filter=metadata_filter)
+        except TypeError:
+            pass
     return store.similarity_search_with_score(query, k=k)
 
 

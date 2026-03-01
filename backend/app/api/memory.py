@@ -98,7 +98,12 @@ def query_memory(
     if not has_kb_access(kb, current_user, db):
         raise HTTPException(status_code=403, detail="无访问权限")
 
-    docs = similarity_search(kb_id, data.query, k=data.top_k)
+    docs = similarity_search(
+        kb_id,
+        data.query,
+        k=data.top_k,
+        metadata_filter={"type": "memory"},
+    )
 
     now = datetime.now(timezone.utc)
     results: list[MemoryResponse] = []
