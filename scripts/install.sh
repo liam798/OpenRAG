@@ -36,17 +36,27 @@ if [[ ! -f backend/.env ]]; then
   echo "    请编辑 backend/.env 填写 OPENAI_API_KEY 等配置。"
 fi
 
-echo "==> 执行数据库迁移..."
+echo "==> 安装后端依赖并执行数据库迁移..."
 (cd backend && pip install -q -r requirements.txt 2>/dev/null; alembic upgrade head)
 
+echo "==> 安装前端依赖..."
+(cd frontend && npm install)
+
+echo "==> 启动后端与前端服务..."
+(cd "$OPENRAG_HOME/backend" && uvicorn app.main:app --reload --host 0.0.0.0) &
+BACKEND_PID=$!
+(cd "$OPENRAG_HOME/frontend" && npm run dev) &
+FRONTEND_PID=$!
+
+sleep 2
 echo ""
-echo "==> 部署就绪。请在本机两个终端中分别启动后端与前端："
+echo "==> 服务已启动"
+echo "    后端 PID: $BACKEND_PID  (端口 8000)"
+echo "    前端 PID: $FRONTEND_PID (端口 3000)"
+echo "    浏览器访问: http://localhost:3000"
+echo "    停止服务: kill $BACKEND_PID $FRONTEND_PID"
 echo ""
-echo "  终端 1 - 后端:"
-echo "    cd $OPENRAG_HOME/backend && uvicorn app.main:app --reload"
+echo "按 Ctrl+C 停止所有服务并退出。"
 echo ""
-echo "  终端 2 - 前端:"
-echo "    cd $OPENRAG_HOME/frontend && npm install && npm run dev"
-echo ""
-echo "  浏览器访问: http://localhost:3000"
-echo ""
+
+wait
