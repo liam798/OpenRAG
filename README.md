@@ -88,6 +88,8 @@ OpenRAG/
 | GET | /api/knowledge-bases/{id} | 知识库详情 |
 | POST | /api/knowledge-bases/{id}/documents | 上传文档 |
 | POST | /api/knowledge-bases/{id}/query | RAG 问答 |
+| POST | /api/knowledge-bases/{id}/memory | 写入公共记忆（需写权限，支持 TTL，-1 永久） |
+| POST | /api/knowledge-bases/{id}/memory/query | 查询公共记忆（需读权限） |
 | GET | /api/knowledge-bases/{id}/members | 成员列表 |
 | POST | /api/knowledge-bases/{id}/members | 添加成员 |
 | GET | /health/live | 存活探针 |
