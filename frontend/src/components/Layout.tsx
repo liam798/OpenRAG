@@ -10,6 +10,7 @@ export default function Layout() {
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<"apiKey" | "agentPrompt" | null>(null);
 
   const handleLogout = () => {
     setUserMenuOpen(false);
@@ -20,6 +21,7 @@ export default function Layout() {
   const handleShowApiKey = async () => {
     setUserMenuOpen(false);
     setApiKeyModalOpen(true);
+    setCopyFeedback(null);
     setLoadingApiKey(true);
     setApiKey(null);
     try {
@@ -46,7 +48,11 @@ export default function Layout() {
   };
 
   const copyApiKey = () => {
-    if (apiKey) navigator.clipboard.writeText(apiKey);
+    if (apiKey) {
+      navigator.clipboard.writeText(apiKey);
+      setCopyFeedback("apiKey");
+      setTimeout(() => setCopyFeedback(null), 2000);
+    }
   };
 
   const baseUrl =
@@ -57,7 +63,11 @@ export default function Layout() {
       : "";
 
   const copyAgentPrompt = () => {
-    if (agentPrompt) navigator.clipboard.writeText(agentPrompt);
+    if (agentPrompt) {
+      navigator.clipboard.writeText(agentPrompt);
+      setCopyFeedback("agentPrompt");
+      setTimeout(() => setCopyFeedback(null), 2000);
+    }
   };
 
   return (
@@ -142,9 +152,13 @@ export default function Layout() {
                   />
                   <button
                     onClick={copyApiKey}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
+                    className={`px-4 py-2 rounded-lg text-sm text-white font-medium transition-all duration-200 ${
+                      copyFeedback === "apiKey"
+                        ? "bg-emerald-500 hover:bg-emerald-500 ring-2 ring-emerald-200 cursor-default"
+                        : "bg-primary-600 hover:bg-primary-700"
+                    }`}
                   >
-                    复制
+                    {copyFeedback === "apiKey" ? "✓ 已复制" : "复制"}
                   </button>
                 </div>
                 <button
@@ -163,9 +177,13 @@ export default function Layout() {
                   />
                   <button
                     onClick={copyAgentPrompt}
-                    className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700"
+                    className={`mt-2 px-4 py-2 rounded-lg text-sm text-white font-medium transition-all duration-200 ${
+                      copyFeedback === "agentPrompt"
+                        ? "bg-emerald-500 hover:bg-emerald-500 ring-2 ring-emerald-200 cursor-default"
+                        : "bg-primary-600 hover:bg-primary-700"
+                    }`}
                   >
-                    复制 Agent 提示词
+                    {copyFeedback === "agentPrompt" ? "✓ 已复制" : "复制 Agent 提示词"}
                   </button>
                 </div>
               </div>
