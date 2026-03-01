@@ -2,7 +2,7 @@
 set -e
 
 OPENRAG_REPO="${OPENRAG_REPO:-https://github.com/liam798/OpenRAG.git}"
-OPENRAG_HOME="${OPENRAG_HOME:-$HOME/OpenRAG}"
+OPENRAG_HOME="${OPENRAG_HOME:-$(pwd)/OpenRAG}"
 
 echo "==> OpenRAG 一键部署"
 echo "    安装目录: $OPENRAG_HOME"
