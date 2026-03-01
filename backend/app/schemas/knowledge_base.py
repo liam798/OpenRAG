@@ -1,17 +1,17 @@
 """知识库相关模式"""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.models.knowledge_base import Visibility, MemberRole
 
 
 class KnowledgeBaseCreate(BaseModel):
-    name: str
-    description: str = ""
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
     visibility: Visibility = Visibility.PRIVATE
 
 
 class KnowledgeBaseUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
     visibility: Visibility | None = None
 
 

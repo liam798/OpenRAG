@@ -2,6 +2,7 @@ import axios from "axios";
 
 const client = axios.create({
   baseURL: "/api",
+  timeout: 15000,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -21,6 +22,9 @@ client.interceptors.response.use(
         localStorage.removeItem("token");
         window.location.href = "/login";
       }
+    }
+    if (err.code === "ECONNABORTED") {
+      err.message = "请求超时，请稍后重试";
     }
     return Promise.reject(err);
   }

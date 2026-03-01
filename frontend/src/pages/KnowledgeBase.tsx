@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import MDEditor from "@uiw/react-md-editor";
 import "@uiw/react-md-editor/markdown-editor.css";
 import { kbApi, KnowledgeBase as KB, Document, Member } from "../api/knowledgeBase";
 import { usersApi } from "../api/users";
 import { useAuth } from "../context/AuthContext";
+
+const MarkdownEditor = lazy(() => import("@uiw/react-md-editor"));
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -635,12 +636,14 @@ export default function KnowledgeBase() {
               <div className="flex-1 min-h-[300px] mb-4">
                 <label className="block text-sm font-medium text-slate-700 mb-1">内容（支持 Markdown）</label>
                 <div data-color-mode="light" className="flex-1">
-                  <MDEditor
-                    value={noteContent}
-                    onChange={(v) => setNoteContent(v ?? "")}
-                    height={300}
-                    preview="live"
-                  />
+                  <Suspense fallback={<div className="h-[300px] border border-slate-200 rounded-lg p-4 text-sm text-slate-500">编辑器加载中...</div>}>
+                    <MarkdownEditor
+                      value={noteContent}
+                      onChange={(v) => setNoteContent(v ?? "")}
+                      height={300}
+                      preview="live"
+                    />
+                  </Suspense>
                 </div>
               </div>
               {uploadError && <p className="text-sm text-red-600">{uploadError}</p>}

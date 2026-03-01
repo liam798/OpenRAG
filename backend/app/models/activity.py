@@ -1,6 +1,6 @@
 """活动/动态模型 - 记录知识库相关操作"""
 import enum
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Enum, Text, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -19,6 +19,10 @@ class Activity(Base):
     """活动表 - 用于动态时间线"""
 
     __tablename__ = "activities"
+    __table_args__ = (
+        Index("ix_activities_kb_created_at", "knowledge_base_id", "created_at"),
+        Index("ix_activities_user_created_at", "user_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

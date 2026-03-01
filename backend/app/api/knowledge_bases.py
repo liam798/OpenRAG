@@ -1,10 +1,13 @@
 """知识库 API"""
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, has_kb_access, require_kb_write, require_kb_admin, require_kb_owner
 from app.models.user import User
@@ -24,21 +27,31 @@ from app.models.activity import ActivityAction
 from app.rag.pipeline import chunk_and_embed
 
 router = APIRouter(prefix="/knowledge-bases", tags=["知识库"])
+logger = logging.getLogger(__name__)
+ALLOWED_UPLOAD_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
 
 
-def _kb_response(kb: KnowledgeBase, db: Session) -> KnowledgeBaseResponse:
-    from app.models.document import Document
-    doc_count = db.query(func.count(Document.id)).filter(Document.knowledge_base_id == kb.id).scalar() or 0
-    owner = db.query(User).filter(User.id == kb.owner_id).first()
+def _file_extension(filename: str) -> str:
+    name = (filename or "").lower()
+    if "." not in name:
+        return ""
+    return f".{name.rsplit('.', 1)[-1]}"
+
+
+def _kb_response(
+    kb: KnowledgeBase,
+    owner_usernames: dict[int, str] | None = None,
+    doc_counts: dict[int, int] | None = None,
+) -> KnowledgeBaseResponse:
     return KnowledgeBaseResponse(
         id=kb.id,
         name=kb.name,
         description=kb.description or "",
         visibility=kb.visibility,
         owner_id=kb.owner_id,
-        owner_username=owner.username if owner else "",
+        owner_username=(owner_usernames or {}).get(kb.owner_id, ""),
         created_at=kb.created_at.isoformat() if kb.created_at else None,
-        document_count=doc_count,
+        document_count=(doc_counts or {}).get(kb.id, 0),
     )
 
 
@@ -52,9 +65,7 @@ def list_my_knowledge_bases(
     db: Annotated[Session, Depends(get_db)],
 ):
     """我的知识库列表（拥有的 + 有权限的）"""
-    # 拥有的
     owned = db.query(KnowledgeBase).filter(KnowledgeBase.owner_id == current_user.id).all()
-    # 作为成员的
     member_kbs = (
         db.query(KnowledgeBase)
         .join(KnowledgeBaseMember)
@@ -62,7 +73,28 @@ def list_my_knowledge_bases(
         .all()
     )
     all_kbs = list({kb.id: kb for kb in owned + member_kbs}.values())
-    return [_kb_response(kb, db) for kb in all_kbs]
+    if not all_kbs:
+        return []
+
+    kb_ids = [kb.id for kb in all_kbs]
+    owner_ids = sorted({kb.owner_id for kb in all_kbs})
+
+    from app.models.document import Document
+    doc_rows = (
+        db.query(Document.knowledge_base_id, func.count(Document.id))
+        .filter(Document.knowledge_base_id.in_(kb_ids))
+        .group_by(Document.knowledge_base_id)
+        .all()
+    )
+    doc_counts = {kb_id: count for kb_id, count in doc_rows}
+
+    owners = db.query(User.id, User.username).filter(User.id.in_(owner_ids)).all()
+    owner_usernames = {owner_id: username for owner_id, username in owners}
+
+    return [
+        _kb_response(kb, owner_usernames=owner_usernames, doc_counts=doc_counts)
+        for kb in all_kbs
+    ]
 
 
 @router.post("", response_model=KnowledgeBaseResponse)
@@ -74,7 +106,7 @@ def create(
     """创建知识库"""
     kb = create_knowledge_base(db, current_user, data.name, data.description, data.visibility)
     record_activity(db, current_user.id, ActivityAction.CREATE_KB, kb.id, {"name": kb.name})
-    return _kb_response(kb, db)
+    return _kb_response(kb, owner_usernames={current_user.id: current_user.username})
 
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseResponse)
@@ -89,7 +121,20 @@ def get(
         raise HTTPException(status_code=404, detail="知识库不存在")
     if not has_kb_access(kb, current_user, db):
         raise HTTPException(status_code=403, detail="无访问权限")
-    return _kb_response(kb, db)
+    owner = db.query(User).filter(User.id == kb.owner_id).first()
+    owner_name = owner.username if owner else ""
+    from app.models.document import Document
+    doc_count = (
+        db.query(func.count(Document.id))
+        .filter(Document.knowledge_base_id == kb.id)
+        .scalar()
+        or 0
+    )
+    return _kb_response(
+        kb,
+        owner_usernames={kb.owner_id: owner_name},
+        doc_counts={kb.id: doc_count},
+    )
 
 
 @router.patch("/{kb_id}", response_model=KnowledgeBaseResponse)
@@ -113,7 +158,20 @@ def update(
         kb.visibility = data.visibility
     db.commit()
     db.refresh(kb)
-    return _kb_response(kb, db)
+    owner = db.query(User).filter(User.id == kb.owner_id).first()
+    owner_name = owner.username if owner else ""
+    from app.models.document import Document
+    doc_count = (
+        db.query(func.count(Document.id))
+        .filter(Document.knowledge_base_id == kb.id)
+        .scalar()
+        or 0
+    )
+    return _kb_response(
+        kb,
+        owner_usernames={kb.owner_id: owner_name},
+        doc_counts={kb.id: doc_count},
+    )
 
 
 @router.delete("/{kb_id}")
@@ -129,7 +187,10 @@ def delete(
     if not require_kb_owner(kb, current_user):
         raise HTTPException(status_code=403, detail="仅所有者可删除")
     from app.rag.vector_store import delete_kb_vectors
-    delete_kb_vectors(kb_id)
+    try:
+        delete_kb_vectors(kb_id)
+    except Exception:
+        logger.exception("delete vector collection failed kb_id=%s", kb_id)
     db.delete(kb)
     db.commit()
     return {"message": "已删除"}
@@ -149,16 +210,30 @@ def upload_document(
     if not require_kb_write(kb, current_user, db):
         raise HTTPException(status_code=403, detail="无写权限")
 
+    filename = file.filename or "unknown"
+    ext = _file_extension(filename)
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"暂不支持该文件类型，仅支持：{', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}",
+        )
+
     raw = file.file.read()
+    max_bytes = settings.MAX_UPLOAD_FILE_SIZE_MB * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文件过大，最大允许 {settings.MAX_UPLOAD_FILE_SIZE_MB} MB",
+        )
     from app.rag.parser import parse_document
-    content = parse_document(raw, file.filename or "", file.content_type or "")
+    content = parse_document(raw, filename, file.content_type or "")
     if not content.strip():
         raise HTTPException(status_code=400, detail="文件内容为空或格式不支持")
 
     from app.models.document import Document
     doc = Document(
         knowledge_base_id=kb_id,
-        filename=file.filename or "unknown",
+        filename=filename,
         content_type=file.content_type or "",
         file_size=len(raw),
     )
@@ -166,13 +241,23 @@ def upload_document(
     db.commit()
     db.refresh(doc)
 
-    chunk_count = chunk_and_embed(kb_id, content, {"document_id": doc.id, "filename": file.filename})
-    doc.chunk_count = chunk_count
-    db.commit()
+    try:
+        chunk_count = chunk_and_embed(kb_id, content, {"document_id": doc.id, "filename": filename})
+        doc.chunk_count = chunk_count
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("chunk_and_embed failed kb_id=%s document_id=%s", kb_id, doc.id)
+        db.delete(doc)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="文档向量化失败，请稍后重试",
+        )
 
     record_activity(
         db, current_user.id, ActivityAction.UPLOAD_DOC, kb_id,
-        {"filename": file.filename, "document_id": doc.id},
+        {"filename": filename, "document_id": doc.id},
     )
     return {"document_id": doc.id, "chunk_count": chunk_count}
 
@@ -218,19 +303,24 @@ def list_members(
         raise HTTPException(status_code=403, detail="无访问权限")
 
     members = db.query(KnowledgeBaseMember).filter(KnowledgeBaseMember.knowledge_base_id == kb_id).all()
+    user_ids = [m.user_id for m in members]
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    user_map = {u.id: u for u in users}
+
     result = []
     for m in members:
-        u = db.query(User).filter(User.id == m.user_id).first()
-        if u:
-            result.append(MemberResponse(
-                id=m.id,
-                user_id=u.id,
-                username=u.username,
-                email=u.email,
-                role=m.role,
-                created_at=m.created_at.isoformat() if m.created_at else None,
-            ))
-    # 添加所有者
+        u = user_map.get(m.user_id)
+        if not u:
+            continue
+        result.append(MemberResponse(
+            id=m.id,
+            user_id=u.id,
+            username=u.username,
+            email=u.email,
+            role=m.role,
+            created_at=m.created_at.isoformat() if m.created_at else None,
+        ))
+
     owner = db.query(User).filter(User.id == kb.owner_id).first()
     if owner:
         result.insert(0, MemberResponse(
@@ -273,7 +363,11 @@ def add_member_endpoint(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    member = add_member(db, kb, data.user_id, data.role)
+    try:
+        member = add_member(db, kb, data.user_id, data.role)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="该用户已是成员")
     record_activity(
         db, current_user.id, ActivityAction.ADD_MEMBER, kb_id,
         {"member_username": user.username, "role": data.role.value},
@@ -316,6 +410,8 @@ def update_member_endpoint(
 
     member = update_member_role(db, member, data.role)
     u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
     return MemberResponse(
         id=member.id,
         user_id=u.id,

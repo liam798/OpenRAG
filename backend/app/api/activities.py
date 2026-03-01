@@ -1,4 +1,5 @@
 """活动/动态 API"""
+import json
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -14,23 +15,25 @@ from app.schemas.activity import ActivityResponse
 router = APIRouter(prefix="/activities", tags=["活动"])
 
 
-def _activity_response(a: Activity, db: Session) -> ActivityResponse:
-    import json
+def _safe_json_loads(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _activity_response(
+    a: Activity,
+    kb_name_map: dict[int, str],
+    kb_owner_map: dict[int, str],
+) -> ActivityResponse:
     from app.schemas.activity import ACTION_LABELS
-    kb_name = None
-    kb_owner = None
-    if a.knowledge_base_id:
-        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == a.knowledge_base_id).first()
-        if kb:
-            kb_name = kb.name
-            owner = db.query(User).filter(User.id == kb.owner_id).first()
-            kb_owner = owner.username if owner else None
-    extra = None
-    if a.extra:
-        try:
-            extra = json.loads(a.extra)
-        except Exception:
-            pass
+    kb_name = kb_name_map.get(a.knowledge_base_id) if a.knowledge_base_id else None
+    kb_owner = kb_owner_map.get(a.knowledge_base_id) if a.knowledge_base_id else None
+    extra = _safe_json_loads(a.extra)
     return ActivityResponse(
         id=a.id,
         user_id=a.user_id,
@@ -59,12 +62,19 @@ def list_activities(
     activities = q.all()
     # 全部动态时只显示用户有权限的知识库相关活动
     if scope == "all":
+        candidate_kb_ids = sorted({a.knowledge_base_id for a in activities if a.knowledge_base_id is not None})
+        kb_map = {}
+        if candidate_kb_ids:
+            kb_map = {
+                kb.id: kb
+                for kb in db.query(KnowledgeBase).filter(KnowledgeBase.id.in_(candidate_kb_ids)).all()
+            }
         filtered = []
         for a in activities:
             if a.knowledge_base_id is None:
                 filtered.append(a)
             else:
-                kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == a.knowledge_base_id).first()
+                kb = kb_map.get(a.knowledge_base_id)
                 if kb and has_kb_access(kb, current_user, db):
                     filtered.append(a)
             if len(filtered) >= limit:
@@ -72,4 +82,16 @@ def list_activities(
         activities = filtered[:limit]
     else:
         activities = activities[:limit]
-    return [_activity_response(a, db) for a in activities]
+
+    kb_ids = sorted({a.knowledge_base_id for a in activities if a.knowledge_base_id is not None})
+    kb_name_map: dict[int, str] = {}
+    kb_owner_map: dict[int, str] = {}
+    if kb_ids:
+        kbs = db.query(KnowledgeBase).filter(KnowledgeBase.id.in_(kb_ids)).all()
+        owner_ids = sorted({kb.owner_id for kb in kbs})
+        owners = db.query(User.id, User.username).filter(User.id.in_(owner_ids)).all() if owner_ids else []
+        owner_map = {owner_id: username for owner_id, username in owners}
+        kb_name_map = {kb.id: kb.name for kb in kbs}
+        kb_owner_map = {kb.id: owner_map.get(kb.owner_id, "") for kb in kbs}
+
+    return [_activity_response(a, kb_name_map, kb_owner_map) for a in activities]

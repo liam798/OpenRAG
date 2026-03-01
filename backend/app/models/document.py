@@ -1,5 +1,5 @@
 """文档模型"""
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -10,6 +10,9 @@ class Document(Base):
     """文档表 - 存储上传的文档元数据"""
 
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("ix_documents_kb_created_at", "knowledge_base_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     knowledge_base_id = Column(Integer, ForeignKey("knowledge_bases.id"), nullable=False)

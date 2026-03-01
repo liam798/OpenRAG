@@ -1,13 +1,21 @@
 """RAG 管道：分块、检索、生成"""
+import logging
+
+import httpx
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 
 from app.core.config import settings
-from app.rag.vector_store import add_documents_to_kb, similarity_search, similarity_search_with_score
+from app.rag.vector_store import (
+    add_documents_to_kb,
+    similarity_search,
+    similarity_search_with_score,
+)
+
+logger = logging.getLogger(__name__)
 
 
 TEXT_SPLITTER = RecursiveCharacterTextSplitter(
@@ -44,10 +52,62 @@ RAG_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
+def _safe_top_k(top_k: int) -> int:
+    max_k = max(1, settings.RAG_TOP_K_MAX)
+    if top_k < 1:
+        return 1
+    if top_k > max_k:
+        return max_k
+    return top_k
+
+
+def _build_sources(docs: list[Document]) -> list[dict]:
+    return [
+        {
+            "content": d.page_content[:200] + "..." if len(d.page_content) > 200 else d.page_content,
+            "knowledge_base_id": d.metadata.get("_kb_id") if d.metadata else None,
+        }
+        for d in docs
+    ]
+
+
+def _fallback_answer_from_docs(docs: list[Document], question: str) -> str:
+    snippets: list[str] = []
+    for idx, doc in enumerate(docs[:3], start=1):
+        text = " ".join(doc.page_content.split())
+        if len(text) > 140:
+            text = text[:140] + "..."
+        snippets.append(f"{idx}. {text}")
+    joined = "\n".join(snippets) if snippets else "暂无可用片段。"
+    return (
+        f"当前暂时无法调用大模型生成最终答案，但已检索到与问题“{question}”相关的片段：\n"
+        f"{joined}"
+    )
+
+
+def _generate_answer(context: str, question: str) -> str:
+    if not settings.OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY 未配置")
+    from app.rag.vector_store import _openai_httpx_clients
+    sync_client, _ = _openai_httpx_clients()
+    timeout_sec = getattr(settings, "OPENAI_REQUEST_TIMEOUT", 60)
+    llm = ChatOpenAI(
+        model=settings.RAG_LLM_MODEL,
+        openai_api_key=settings.OPENAI_API_KEY,
+        temperature=0,
+        timeout=timeout_sec,
+        max_retries=2,
+        http_client=sync_client,
+    )
+    chain = RAG_PROMPT | llm | StrOutputParser()
+    return chain.invoke({"context": context, "question": question})
+
+
 def query_kbs(kb_ids: list[int], question: str, top_k: int = 5) -> tuple[str, list[dict]]:
     """
     多知识库 RAG 问答，kb_ids 为空时需由调用方传入全部可访问的 kb_id
     """
+    top_k = _safe_top_k(top_k)
     all_scored: list[tuple[Document, float]] = []
     for kb_id in kb_ids:
         for doc, score in similarity_search_with_score(kb_id, question, k=top_k):
@@ -60,17 +120,12 @@ def query_kbs(kb_ids: list[int], question: str, top_k: int = 5) -> tuple[str, li
     all_scored.sort(key=lambda x: x[1])
     docs = [d for d, _ in all_scored[:top_k]]
     context = format_docs(docs)
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        openai_api_key=settings.OPENAI_API_KEY,
-        temperature=0,
-    )
-    chain = RAG_PROMPT | llm | StrOutputParser()
-    answer = chain.invoke({"context": context, "question": question})
-    sources = [
-        {"content": d.page_content[:200] + "..." if len(d.page_content) > 200 else d.page_content}
-        for d in docs
-    ]
+    try:
+        answer = _generate_answer(context, question)
+    except Exception as exc:
+        logger.warning("query_kbs llm degraded: %s", exc)
+        answer = _fallback_answer_from_docs(docs, question)
+    sources = _build_sources(docs)
     return answer, sources
 
 
@@ -79,21 +134,17 @@ def query_kb(kb_id: int, question: str, top_k: int = 5) -> tuple[str, list[dict]
     RAG 问答：检索 + 生成
     返回 (答案, 来源列表)
     """
+    top_k = _safe_top_k(top_k)
     docs = similarity_search(kb_id, question, k=top_k)
     if not docs:
         return "知识库中暂无相关文档，请先上传文档。", []
 
     context = format_docs(docs)
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        openai_api_key=settings.OPENAI_API_KEY,
-        temperature=0,
-    )
-    chain = RAG_PROMPT | llm | StrOutputParser()
-    answer = chain.invoke({"context": context, "question": question})
+    try:
+        answer = _generate_answer(context, question)
+    except Exception as exc:
+        logger.warning("query_kb llm degraded: %s", exc)
+        answer = _fallback_answer_from_docs(docs, question)
 
-    sources = [
-        {"content": d.page_content[:200] + "..." if len(d.page_content) > 200 else d.page_content}
-        for d in docs
-    ]
+    sources = _build_sources(docs)
     return answer, sources

@@ -1,6 +1,6 @@
 """知识库模型 - 类似 GitHub 仓库"""
 import enum
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -45,6 +45,10 @@ class KnowledgeBaseMember(Base):
     """知识库成员表 - 权限管理"""
 
     __tablename__ = "knowledge_base_members"
+    __table_args__ = (
+        UniqueConstraint("knowledge_base_id", "user_id", name="uq_kb_member"),
+        Index("ix_kb_members_kb_user", "knowledge_base_id", "user_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     knowledge_base_id = Column(Integer, ForeignKey("knowledge_bases.id"), nullable=False)

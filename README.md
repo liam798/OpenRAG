@@ -5,7 +5,7 @@
 ## 功能特性
 
 - **用户系统**：注册、登录、JWT 认证
-- **知识库（仓库）**：每个用户可创建多个知识库，支持公开/私有
+- **知识库管理**：每个用户可创建多个知识库，支持公开/私有
 - **权限管理**：Owner / Admin / Write / Read 四级权限
 - **文档管理**：上传文档，自动分块与向量化
 - **智能检索**：基于 RAG 的问答，支持语义搜索
@@ -17,19 +17,16 @@
 - **RAG**：LangChain + OpenAI Embeddings
 - **前端**：React + TypeScript + Tailwind CSS
 
-## 快速开始
-
-### 一键部署
+## 一键启动
 
 已安装 Docker 与 Docker Compose 时，可执行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/liam798/OpenRAG/main/scripts/install.sh | bash
 ```
+## 编译启动
 
-脚本将克隆仓库、启动 PostgreSQL、执行数据库迁移，并提示你在两个终端分别启动后端与前端。完成后访问 http://localhost:3000 使用。
-
-### 环境要求（手动部署）
+### 环境要求
 
 - Python 3.10+
 - PostgreSQL 14+ (需安装 pgvector 扩展)
@@ -93,5 +90,14 @@ OpenRAG/
 | POST | /api/knowledge-bases/{id}/query | RAG 问答 |
 | GET | /api/knowledge-bases/{id}/members | 成员列表 |
 | POST | /api/knowledge-bases/{id}/members | 添加成员 |
+| GET | /health/live | 存活探针 |
+| GET | /health/ready | 就绪探针（含数据库探活） |
 
 **API Key**：调用公开接口时使用（用户菜单 → API Key）。Agent 接入时在 API Key 弹窗中点击「复制 Agent 提示词」即可一键让 Agent 接入 OpenRAG。
+
+## 可靠性与运维建议
+
+- 默认关闭破坏性迁移（`ALLOW_DESTRUCTIVE_MIGRATIONS=false`），防止初始化或升级时误清空数据。
+- 建议将 `ALLOWED_ORIGINS` 显式配置为前端域名列表，生产环境避免使用 `*`。
+- 可通过 `REQUEST_TIMEOUT_SECONDS` 控制接口超时保护；响应会返回 `X-Request-ID` 与 `X-Process-Time-Ms` 便于排障。
+- 文档上传受 `MAX_UPLOAD_FILE_SIZE_MB` 与文件类型白名单限制（txt/md/pdf/docx）。
