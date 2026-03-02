@@ -1,6 +1,7 @@
 """跨 agent 公共记忆 API"""
 import json
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,10 +13,12 @@ from app.models.knowledge_base import KnowledgeBase
 from app.models.memory import MemoryItem
 from app.models.user import User
 from app.schemas.memory import MemoryCreate, MemoryQuery, MemoryResponse
-from app.rag.vector_store import add_documents_to_kb, similarity_search
+from app.schemas.memory_cleanup import MemoryCleanupRequest, MemoryCleanupResponse
+from app.rag.vector_store import add_documents_to_kb, similarity_search, delete_vectors_by_filter
 from langchain_core.documents import Document
 
 router = APIRouter(tags=["公共记忆"])
+logger = logging.getLogger(__name__)
 
 
 _RESERVED_META_KEYS = {"knowledge_base_id", "type", "memory_id", "expires_at"}
@@ -157,3 +160,51 @@ def query_memory(
             )
         )
     return results
+
+
+@router.post("/knowledge-bases/{kb_id}/memory/cleanup", response_model=MemoryCleanupResponse)
+def cleanup_memory(
+    kb_id: int,
+    data: MemoryCleanupRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """清理过期公共记忆（DB + 向量）。需要 KB 写权限。"""
+    kb = _get_kb(db, kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail="知识库不存在")
+    if not require_kb_write(kb, current_user, db):
+        raise HTTPException(status_code=403, detail="无写入权限")
+
+    now = datetime.now(timezone.utc)
+    items = (
+        db.query(MemoryItem)
+        .filter(MemoryItem.knowledge_base_id == kb_id)
+        .filter(MemoryItem.expires_at.isnot(None))
+        .filter(MemoryItem.expires_at < now)
+        .limit(data.limit)
+        .all()
+    )
+
+    deleted_rows = 0
+    deleted_vectors = 0
+    skipped_vectors = 0
+    for item in items:
+        ok = delete_vectors_by_filter(
+            kb_id,
+            {"type": "memory", "memory_id": item.id},
+        )
+        if ok:
+            deleted_vectors += 1
+        else:
+            skipped_vectors += 1
+            logger.debug("vector delete not supported for memory_id=%s", item.id)
+        db.delete(item)
+        deleted_rows += 1
+
+    db.commit()
+    return MemoryCleanupResponse(
+        deleted_rows=deleted_rows,
+        deleted_vectors=deleted_vectors,
+        skipped_vectors=skipped_vectors,
+    )

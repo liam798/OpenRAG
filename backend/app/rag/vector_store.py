@@ -105,6 +105,22 @@ def similarity_search_with_score(
     return store.similarity_search_with_score(query, k=k)
 
 
+def delete_vectors_by_filter(kb_id: int, metadata_filter: dict) -> bool:
+    """按元数据过滤删除向量（若底层不支持则返回 False）"""
+    store = get_vector_store(kb_id)
+    # 尝试常见 delete 接口签名
+    try:
+        store.delete(filter=metadata_filter)
+        return True
+    except TypeError:
+        pass
+    try:
+        store.delete(where=metadata_filter)
+        return True
+    except TypeError:
+        return False
+
+
 def delete_kb_vectors(kb_id: int) -> None:
     """删除知识库所有向量（删除知识库时调用）"""
     store = get_vector_store(kb_id)

@@ -90,6 +90,7 @@ OpenRAG/
 | POST | /api/knowledge-bases/{id}/query | RAG 问答 |
 | POST | /api/knowledge-bases/{id}/memory | 写入公共记忆（需写权限，支持 TTL，-1 永久） |
 | POST | /api/knowledge-bases/{id}/memory/query | 查询公共记忆（需读权限） |
+| POST | /api/knowledge-bases/{id}/memory/cleanup | 清理过期公共记忆（需写权限） |
 | GET | /api/knowledge-bases/{id}/members | 成员列表 |
 
 **公共记忆说明**
